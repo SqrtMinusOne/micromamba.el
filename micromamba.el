@@ -1,4 +1,4 @@
-;;; micromamba.el --- A simple micromamba integration for Emacs  -*- lexical-binding: t -*-
+;;; micromamba.el --- A simple micromamba integration -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2023 Korytov Pavel
 
@@ -68,6 +68,8 @@
 
 (defvar micromamba-env-current-prefix nil
   "Current activated micromamba environment.")
+
+(defvar eshell-path-env)
 
 (defun micromamba--call-json (&rest args)
   "Call micromamba and parse the return value as JSON.
