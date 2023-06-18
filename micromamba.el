@@ -214,4 +214,5 @@ The parameters value is an alist as defined by
     (setq micromamba-env-current-prefix nil)
     (run-hooks 'micromamba-postdeactivate-hook)))
 
+(provide 'micromamba)
 ;;; micromamba.el ends here
