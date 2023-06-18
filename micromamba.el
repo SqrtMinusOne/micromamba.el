@@ -175,6 +175,8 @@ The parameters value is an alist as defined by
 
 The parameters value is an alist as defined by
 `micromamba--parse-script-buffer'."
+  (unless (alist-get 'path parameters)
+    (user-error "Something went wrong.  Cannot get PATH"))
   (setq exec-path (alist-get 'path parameters))
   (setenv "PATH" (string-join (alist-get 'path parameters) ":"))
   (dolist (var-name (alist-get 'vars-unset parameters))
@@ -192,6 +194,13 @@ The parameters value is an alist as defined by
             (completing-read "Choose a micromamba environment: " envs
                              nil t)
             envs nil nil #'equal))))
+  ;; To allow calling the function with env name as well
+  (unless (string-match-p (rx bos "/") prefix)
+    (let ((envs (micromamba-envs)))
+      (setq prefix (alist-get prefix envs nil nil #'equal)))
+    (unless prefix
+      (user-error "Environment %s not found")))
+  (message prefix)
   (micromamba-deactivate)
   (setq micromamba-env-current-prefix prefix)
   (run-hooks 'micromamba-preactivate-hook)
