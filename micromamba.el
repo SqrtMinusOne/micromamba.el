@@ -1,4 +1,4 @@
-;;; micromamba.el --- A simple micromamba integration -*- lexical-binding: t -*-
+;;; micromamba.el --- A library for working with micromamba environments -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2023 Korytov Pavel
 
@@ -25,7 +25,19 @@
 
 ;;; Commentary:
 
-;; Use conda.el for full mamba.
+;; mamba is a reimplementation of the conda package manager in C++.
+;; mamba is notably much faster and essentially compatible with conda,
+;; so it also works with conda.el.  micromamba, however, implements
+;; only a subset of mamba commands, and as such requires a separate
+;; integration.
+;;
+;; The package has two entrypoints:
+;; - `micromamba-activate' - activate the environment
+;; - `micromamba-deactivate' - deactivate the environment
+;;
+;; Also see the README at
+;; <https://github.com/SqrtMinusOne/micromamba.el> for more
+;; information.
 
 ;;; Code:
 (require 'json)
@@ -35,11 +47,6 @@
 (defgroup micromamba nil
   "Micromamba (environment manager) integration for Emacs."
   :group 'python)
-
-(defcustom micromamba-home "~/micromamba"
-  "Location of micromamba home evironment directory."
-  :type 'string
-  :group 'micromamba)
 
 (defcustom micromamba-executable (executable-find "micromamba")
   "Path to micromamba executable."
@@ -189,7 +196,10 @@ The parameters value is an alist as defined by
 
 ;;;###autoload
 (defun micromamba-activate (prefix)
-  "Switch to environment with PREFIX (path).  Prompt if called interactively."
+  "Switch to environment with PREFIX (path).  Prompt if called interactively.
+
+If some environments have duplicate names, these names are replaced by
+full paths."
   (interactive
    (list (let ((envs (micromamba-envs)))
            (alist-get
@@ -202,7 +212,6 @@ The parameters value is an alist as defined by
       (setq prefix (alist-get prefix envs nil nil #'equal)))
     (unless prefix
       (user-error "Environment %s not found")))
-  (message prefix)
   (micromamba-deactivate)
   (setq micromamba-env-current-prefix prefix)
   (run-hooks 'micromamba-preactivate-hook)
@@ -211,7 +220,8 @@ The parameters value is an alist as defined by
   (setq python-shell-virtualenv-root prefix)
   (micromamba--apply-env
    (micromamba--get-activation-parameters prefix))
-  (run-hooks 'micromamba-postactivate-hook))
+  (run-hooks 'micromamba-postactivate-hook)
+  (message "Switched to micromamba environment: %s" prefix))
 
 ;;;###autoload
 (defun micromamba-deactivate ()

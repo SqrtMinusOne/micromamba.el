@@ -1,0 +1,37 @@
+#+TITLE: micromamba.el
+
+Emacs package for working with [[https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html][micromamba]] environments.
+
+[[https://mamba.readthedocs.io/en/latest/index.html][mamba]] is a reimplementation of the [[https://docs.conda.io/en/latest/][conda]] package manager in C++. =mamba= is notably much faster and essentially compatible with =conda=, so it also works with [[https://github.com/necaris/conda.el][conda.el]]. =micromamba=, however, implements only a subset of =mamba= commands, and as such requires a separate integration.
+
+* Installation
+The package isn't yet available anywhere but in this repository. My preferred way for such cases is [[https://github.com/jwiegley/use-package][use-package]] and [[https://github.com/radian-software/straight.el][straight.el]]:
+
+#+begin_src emacs-lisp
+(use-package micromamba
+  :straight (:host github :repo "SqrtMinusOne/micromamba.el"))
+#+end_src
+
+Or clone the repository, add it to the =load-path= and =require= the package.
+
+If your =micromamba= binary is located in some place unknown to =executable-find=, set the =micromamba-executable= variable.
+
+If you are running shells (e.g. [[https://github.com/akermu/emacs-libvterm][vterm]]) from Emacs, you probably want to set =auto_activate_base= in your [[https://docs.conda.io/projects/conda/en/latest/user-guide/configuration/index.html][.condarc]] or [[https://mamba.readthedocs.io/en/latest/user_guide/configuration.html][.mambarc]], because the shells are launched in the correct environment anyway.
+
+* Usage
+The package has two entrypoints:
+- =M-x micromamba-activate= - activate the environment
+- =M-x micromamba-deactivate= - deactivate the environment
+
+=micromamba-activate= prompts for the environment (by parsing =micromamba env list=). If some environments have duplicate names, these names are replaced by full paths.
+
+I've noticed that =micromamba= also sees =conda= environments, so migrating from =conda= was rather painless for me.
+
+* Implementation notes
+I initially wanted to extend [[https://github.com/necaris/conda.el][conda.el]], but decided it would be counterproductive for a few reasons.
+
+First, =conda= is rather slow, so =conda.el= does various tricks to avoid calling the =conda= executable. For instance, it gets the environment list from scanning the anaconda home directory instead of running =conda env list=. This is really not necessary with =micromamba=, which is written in C++.
+
+Second, and more importantly, =conda.el= relies heavily on passing =shell.posix+json= to =conda=. =micromamba= doesn't support that. It supports the =--json= flag in some places, but not in the =activate= command, so I have to parse the output of =micromamba shell -s bash activate= and =micromamba shell -s bash deactivate= to get the environment configuration.
+
+This also means the package most likely won't work out-of-the-box on Windows.
