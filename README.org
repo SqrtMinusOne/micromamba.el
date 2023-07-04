@@ -7,11 +7,11 @@ Emacs package for working with [[https://mamba.readthedocs.io/en/latest/user_gui
 [[https://mamba.readthedocs.io/en/latest/index.html][mamba]] is a reimplementation of the [[https://docs.conda.io/en/latest/][conda]] package manager in C++. =mamba= is notably much faster and essentially compatible with =conda=, so it also works with [[https://github.com/necaris/conda.el][conda.el]]. =micromamba=, however, implements only a subset of =mamba= commands, and as such requires a separate integration.
 
 * Installation
-The package isn't yet available anywhere but in this repository. My preferred way for such cases is [[https://github.com/jwiegley/use-package][use-package]] and [[https://github.com/radian-software/straight.el][straight.el]]:
+The package is available on MELPA. Install it however you normally install packages, I prefer =use-package= and =straight=:
 
 #+begin_src emacs-lisp
 (use-package micromamba
-  :straight (:host github :repo "SqrtMinusOne/micromamba.el"))
+  :straight t)
 #+end_src
 
 Or clone the repository, add it to the =load-path= and =require= the package.
