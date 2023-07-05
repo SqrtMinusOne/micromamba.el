@@ -211,7 +211,7 @@ full paths."
     (let ((envs (micromamba-envs)))
       (setq prefix (alist-get prefix envs nil nil #'equal)))
     (unless prefix
-      (user-error "Environment %s not found")))
+      (user-error "Environment %s not found" prefix)))
   (micromamba-deactivate)
   (setq micromamba-env-current-prefix prefix)
   (run-hooks 'micromamba-preactivate-hook)
