@@ -164,7 +164,7 @@ The parameters value is an alist as defined by
 `micromamba--parse-script-buffer'."
   (with-temp-buffer
     (call-process micromamba-executable nil t nil
-                  "shell" "-s" "bash" "activate" prefix)
+                  "shell" "activate" prefix "-s" "bash")
     (goto-char (point-min))
     (micromamba--parse-script-buffer)))
 
@@ -175,7 +175,7 @@ The parameters value is an alist as defined by
 `micromamba--parse-script-buffer'."
   (with-temp-buffer
     (call-process micromamba-executable nil t nil
-                  "shell" "-s" "bash" "deactivate")
+                  "shell" "deactivate" "-s" "bash")
     (goto-char (point-min))
     (micromamba--parse-script-buffer)))
 
