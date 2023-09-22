@@ -48,9 +48,25 @@
   "Micromamba (environment manager) integration for Emacs."
   :group 'python)
 
+(defcustom micromamba-home (expand-file-name "~/.micromamba") ;; adapted from conda.el
+  "The directory where micromamba stores its files."
+  :type 'directory
+  :group 'micromamba)
+
 (defcustom micromamba-executable (executable-find "micromamba")
   "Path to micromamba executable."
   :type 'string
+  :group 'micromamba)
+
+(defcustom micromamba-message-on-environment-switch t ;;adapted from conda.el
+  "Whether to message when switching environments.  Default true."
+  :type 'boolean
+  :group 'micromamba)
+
+(defcustom micromamba-activate-base-by-default nil ;;adapted from conda.el
+  "Whether to activate the base environment by default if no other is preferred.
+Default nil."
+  :type 'boolean
   :group 'micromamba)
 
 (defcustom micromamba-preactivate-hook nil
@@ -78,6 +94,17 @@
 
 (defvar eshell-path-env)
 
+;; internal variables that you probably shouldn't mess with
+
+(defvar micromamba-env-executables-dir  ;; copied from virtualenv.el b/w/o conda.el
+  (if (eq system-type 'windows-nt) "Scripts" "bin")
+  "Name of the directory containing executables.  It is system dependent.")
+
+(defvar micromamba-env-meta-dir "conda-meta" ;; copied from conda.el
+  "Name of the directory containing metadata.
+This should be consistent across platforms.")
+
+;; internal utility functions
 (defun micromamba--call-json (&rest args)
   "Call micromamba and parse the return value as JSON.
 
@@ -88,6 +115,17 @@ Pass ARGS as arguments to the program."
     (apply #'call-process micromamba-executable nil t nil args)
     (goto-char (point-min))
     (json-read)))
+
+(defvar micromamba--config nil
+  "Cached copy of configuration that Micromamba sees (including `condarc', etc).
+Set for the lifetime of the process.")
+
+(defun micromamba--get-config()
+  "Return current Conda configuration.  Cached for the lifetime of the process."
+  (if (not (eq micromamba--config nil))
+      micromamba--config
+    (let ((cfg (micromamba--call-json "config" "list" "--json")))
+      (setq micromamba--config cfg))))
 
 (defun micromamba-envs ()
   "Get micromamba environments.
@@ -157,6 +195,51 @@ Returns an alist with the following keys:
       (vars-export . ,vars-export)
       (scripts . ,scripts))))
 
+(defun micromamba--env-dir-is-valid (candidate)
+  "Confirm that CANDIDATE is a valid conda environment."
+  (let ((dir (file-name-as-directory candidate)))
+    (and (not (s-blank? candidate))
+         (f-directory? dir)
+         (or (f-directory? (concat dir micromamba-env-executables-dir))
+             (f-directory? (concat dir micromamba-env-meta-dir))))))
+
+(defun micromamba--contains-env-yml? (candidate) ;; adapted from conda.el
+  "Does CANDIDATE contain an environment.yml?"
+  (f-exists? (f-expand "environment.yml" candidate)))
+
+(defun micromamba--find-env-yml (dir) ;; adapted from conda.el
+  "Find an environment.yml in DIR or its parent directories."
+  ;; TODO: implement an optimized finder with e.g. projectile? Or a series of
+  ;; finder functions, that stop at the project root when traversing
+  (let ((containing-path (f-traverse-upwards 'micromamba--contains-env-yml? dir)))
+    (if containing-path
+        (f-expand "environment.yml" containing-path)
+      nil)))
+
+(defun micromamba--get-name-from-env-yml (filename) ;; adapted from conda.el
+  "Pull the `name` property out of the YAML file at FILENAME."
+  ;; TODO: find a better way than slurping it in and using a regex...
+  (when filename
+    (let ((env-yml-contents (f-read-text filename)))
+      (if (string-match "name:[ ]*\\([A-z0-9-_.]+\\)[ ]*$" env-yml-contents)
+          (match-string 1 env-yml-contents)
+        nil))))
+
+(defun micromamba--infer-env-from-buffer () ;; adapted from conda.el
+  "Search up the project tree for an `environment.yml` defining a conda env."
+  (let* ((filename (buffer-file-name))
+         (working-dir (if filename
+                          (f-dirname filename)
+                        default-directory)))
+    (when working-dir
+      (or
+       (micromamba--get-name-from-env-yml (micromamba--find-env-yml working-dir))
+       (if (or
+            micromamba-activate-base-by-default
+            (alist-get 'auto_activate_base (micromamba--get-config)))
+           "base"
+         nil)))))
+
 (defun micromamba--get-activation-parameters (prefix)
   "Get activation parameters for the environment PREFIX.
 
@@ -193,6 +276,31 @@ The parameters value is an alist as defined by
   (dolist (var (alist-get 'vars-export parameters))
     (setenv (car var) (cdr var)))
   (setq eshell-path-env (getenv "PATH")))
+
+;; "public" functions
+
+(defun micromamba-env-default-location ()
+  "Default location of the conda environments -- under the Anaconda installation."
+  (let ((candidates (alist-get 'envs_dirs (micromamba--get-config))))
+    (f-full (aref candidates 0))))
+
+
+(defun micromamba-env-name-to-dir (name)
+  "Translate NAME to the directory where the environment is located."
+  (if (and (string= name "base")
+           (micromamba--env-dir-is-valid micromamba-home))
+      (file-name-as-directory (expand-file-name micromamba-home))
+    (let* ((default-location (file-name-as-directory (micromamba-env-default-location)))
+           (initial-possibilities (list name (concat default-location name)))
+           (possibilities (if (boundp 'venv-location)
+                              (if (stringp venv-location)
+                                  (cons venv-location initial-possibilities)
+                                (nconc venv-location initial-possibilities))
+                            initial-possibilities))
+           (matches (-filter 'micromamba--env-dir-is-valid possibilities)))
+      (if (> (length matches) 0)
+          (file-name-as-directory (expand-file-name (car matches)))
+        (error "No such conda environment: %s" name)))))
 
 ;;;###autoload
 (defun micromamba-activate (prefix)
@@ -234,6 +342,53 @@ full paths."
      (micromamba--get-deactivation-parameters))
     (setq micromamba-env-current-prefix nil)
     (run-hooks 'micromamba-postdeactivate-hook)))
+
+;;;###autoload
+(defun micromamba-env-activate-for-buffer ()
+  "Activate the conda environment implied by the current buffer.
+
+This can be set by a buffer-local or project-local variable (e.g. a
+`.dir-locals.el` that defines `conda-project-env-path`), or inferred from an
+`environment.yml` or similar at the project level."
+  (interactive)
+  (let* ((inferred-env (micromamba--infer-env-from-buffer))
+         (env-path (cond
+                    ((bound-and-true-p conda-project-env-path) conda-project-env-path)
+                    ((not (eql inferred-env nil)) (micromamba-env-name-to-dir inferred-env))
+                    (t nil))))
+
+    (if (not (eql env-path nil))
+        (micromamba-activate env-path)
+      (if micromamba-message-on-environment-switch
+          (message "No Conda environment found for <%s>" (buffer-file-name))))))
+
+(defun micromamba--switch-buffer-auto-activate (&rest args)
+  "Add Conda environment activation if a buffer has a file, handling ARGS."
+  (let ((filename (buffer-file-name)))
+    (when filename
+      ;; (message "switch-buffer auto-activating on <%s>" filename)
+      (with-demoted-errors "Error: %S"
+        (micromamba-env-activate-for-buffer)))))
+
+;;;###autoload
+(define-minor-mode micromamba-env-autoactivate-mode
+  "Toggle conda-env-autoactivate mode.
+
+This mode automatically tries to activate a conda environment for the current
+buffer."
+  ;; The initial value.
+  :init-value nil
+  ;; The indicator for the mode line.
+  :lighter nil
+  ;; The minor mode bindings.
+  :keymap nil
+  ;; Kwargs
+  :group 'micromamba
+  :global t
+  ;; Forms
+  (if micromamba-env-autoactivate-mode ;; already on, now switching off
+      (advice-add 'switch-to-buffer :after #'micromamba--switch-buffer-auto-activate)
+    (advice-remove 'switch-to-buffer #'micromamba--switch-buffer-auto-activate)))
 
 (provide 'micromamba)
 ;;; micromamba.el ends here
