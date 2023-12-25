@@ -7,6 +7,7 @@
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "27.1") (pythonic "0.1.0"))
 ;; Homepage: https://github.com/SqrtMinusOne/micromamba.el
+;; Published-At: 2023-06-20
 
 ;; This file is NOT part of GNU Emacs.
 
