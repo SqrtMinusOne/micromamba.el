@@ -349,16 +349,9 @@ This can be set by a buffer-local or project-local variable (e.g. a
 `.dir-locals.el` that defines `conda-project-env-path`), or inferred from an
 `environment.yml` or similar at the project level."
   (interactive)
-  (let* ((inferred-env (micromamba--infer-env-from-buffer))
-         (env-path (cond
-                    ((bound-and-true-p conda-project-env-path) conda-project-env-path)
-                    ((not (eql inferred-env nil)) (micromamba-env-name-to-dir inferred-env))
-                    (t nil))))
-
-    (when (not (eql env-path nil))
-        (micromamba-activate env-path)
-      (if micromamba-message-on-environment-switch
-          (message "No Conda environment found for <%s>" (buffer-file-name))))))
+  (let ((inferred-env (micromamba--infer-env-from-buffer)))
+    (when inferred-env
+    (micromamba-activate inferred-env))))
 
 (defun micromamba--switch-buffer-auto-activate (&rest args)
   "Add Conda environment activation if a buffer has a file, handling ARGS."
