@@ -355,7 +355,7 @@ This can be set by a buffer-local or project-local variable (e.g. a
                     ((not (eql inferred-env nil)) (micromamba-env-name-to-dir inferred-env))
                     (t nil))))
 
-    (if (not (eql env-path nil))
+    (when (not (eql env-path nil))
         (micromamba-activate env-path)
       (if micromamba-message-on-environment-switch
           (message "No Conda environment found for <%s>" (buffer-file-name))))))
