@@ -319,8 +319,10 @@ buffer."
   :global t
   ;; Forms
   (if micromamba-env-autoactivate-mode ;; already on, now switching off
-    (add-to-list 'window-selection-change-functions #'micromamba--switch-buffer-auto-activate)
-    (delete #'micromamba--switch-buffer-auto-activate window-selection-change-functions)))
+    (add-to-list 'window-selection-change-functions
+                 #'micromamba--switch-buffer-auto-activate)
+    (delete #'micromamba--switch-buffer-auto-activate
+            window-selection-change-functions)))
 
 (provide 'micromamba)
 ;;; micromamba.el ends here
