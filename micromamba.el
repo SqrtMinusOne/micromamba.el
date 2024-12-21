@@ -213,18 +213,16 @@ Returns an alist with the following keys:
   ;; TODO: implement an optimized finder with e.g. projectile? Or a series of
   ;; finder functions, that stop at the project root when traversing
   (let ((containing-path (f-traverse-upwards 'micromamba--contains-env-yml? dir)))
-    (if containing-path
-        (f-expand "environment.yml" containing-path)
-      nil)))
+    (when containing-path
+        (f-expand "environment.yml" containing-path))))
 
 (defun micromamba--get-name-from-env-yml (filename) ;; adapted from conda.el
   "Pull the `name` property out of the YAML file at FILENAME."
   ;; TODO: find a better way than slurping it in and using a regex...
   (when filename
     (let ((env-yml-contents (f-read-text filename)))
-      (if (string-match "name:[ ]*\\([A-z0-9-_.]+\\)[ ]*$" env-yml-contents)
-          (match-string 1 env-yml-contents)
-        nil))))
+      (when (string-match "name:[ ]*\\([A-z0-9-_.]+\\)[ ]*$" env-yml-contents)
+          (match-string 1 env-yml-contents)))))
 
 (defun micromamba--infer-env-from-buffer () ;; adapted from conda.el
   "Search up the project tree for an `environment.yml` defining a conda env."
@@ -235,11 +233,10 @@ Returns an alist with the following keys:
     (when working-dir
       (or
        (micromamba--get-name-from-env-yml (micromamba--find-env-yml working-dir))
-       (if (or
+       (when (or
             micromamba-activate-base-by-default
             (alist-get 'auto_activate_base (micromamba--get-config)))
-           "base"
-         nil)))))
+           "base")))))
 
 (defun micromamba--get-activation-parameters (prefix)
   "Get activation parameters for the environment PREFIX.
