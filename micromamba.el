@@ -49,25 +49,11 @@
   "Micromamba (environment manager) integration for Emacs."
   :group 'python)
 
-(defcustom micromamba-home (expand-file-name "~/.micromamba") ;; adapted from conda.el
-  "The directory where micromamba stores its files."
-  :type 'directory
-  :group 'micromamba)
-
 (defcustom micromamba-executable (executable-find "micromamba")
   "Path to micromamba executable."
   :type 'string
   :group 'micromamba)
 
-(defcustom micromamba-message-on-environment-switch t ;;adapted from conda.el
-  "Whether to message when switching environments.  Default true."
-  :type 'boolean
-  :group 'micromamba)
-
-(defcustom micromamba-activate-base-by-default nil ;;adapted from conda.el
-  "Whether to activate the base environment by default if no other is preferred.
-Default nil."
-  :type 'boolean
 (defcustom micromamba-fallback-environment nil
   "An environment that micromamba.el activates by default."
   :type 'string
@@ -98,17 +84,6 @@ Default nil."
 
 (defvar eshell-path-env)
 
-;; internal variables that you probably shouldn't mess with
-
-(defvar micromamba-env-executables-dir  ;; copied from virtualenv.el b/w/o conda.el
-  (if (eq system-type 'windows-nt) "Scripts" "bin")
-  "Name of the directory containing executables.  It is system dependent.")
-
-(defvar micromamba-env-meta-dir "conda-meta" ;; copied from conda.el
-  "Name of the directory containing metadata.
-This should be consistent across platforms.")
-
-;; internal utility functions
 (defun micromamba--call-json (&rest args)
   "Call micromamba and parse the return value as JSON.
 
@@ -119,17 +94,6 @@ Pass ARGS as arguments to the program."
     (apply #'call-process micromamba-executable nil t nil args)
     (goto-char (point-min))
     (json-read)))
-
-(defvar micromamba--config nil
-  "Cached copy of configuration that Micromamba sees (including `condarc', etc).
-Set for the lifetime of the process.")
-
-(defun micromamba--get-config()
-  "Return current Conda configuration.  Cached for the lifetime of the process."
-  (if (not (eq micromamba--config nil))
-      micromamba--config
-    (let ((cfg (micromamba--call-json "config" "list" "--json")))
-      (setq micromamba--config cfg))))
 
 (defun micromamba-envs ()
   "Get micromamba environments.
