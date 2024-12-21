@@ -240,6 +240,11 @@ The parameters value is an alist as defined by
     (setenv (car var) (cdr var)))
   (setq eshell-path-env (getenv "PATH")))
 
+(defun micromamba--env-name-to-prefix (name)
+  "Get the prefix of an environment with NAME."
+  (let ((envs (micromamba-envs)))
+    (alist-get name envs nil nil #'equal)))
+
 ;; "public" functions
 ;;;###autoload
 (defun micromamba-activate (prefix)
@@ -255,8 +260,7 @@ full paths."
             envs nil nil #'equal))))
   ;; To allow calling the function with env name as well
   (unless (string-match-p (rx bos "/") prefix)
-    (let ((envs (micromamba-envs)))
-      (setq prefix (alist-get prefix envs nil nil #'equal)))
+    (setq prefix (micromamba--env-name-to-prefix prefix))
     (unless prefix
       (user-error "Environment %s not found" prefix)))
   (micromamba-deactivate)
@@ -291,14 +295,15 @@ This can be set by a buffer-local or project-local variable (e.g. a
 `environment.yml` or similar at the project level."
   (interactive)
   (let ((inferred-env (micromamba--infer-env-from-buffer)))
-    (when inferred-env
-    (micromamba-activate inferred-env))))
+    (when (and inferred-env
+               (not (string= micromamba-env-current-prefix
+                             (micromamba--env-name-to-prefix inferred-env))))
+      (micromamba-activate inferred-env))))
 
 (defun micromamba--switch-buffer-auto-activate (&rest args)
   "Add Conda environment activation if a buffer has a file, handling ARGS."
   (let ((filename (buffer-file-name)))
     (when filename
-      ;; (message "switch-buffer auto-activating on <%s>" filename)
       (with-demoted-errors "Error: %S"
         (micromamba-env-activate-for-buffer)))))
 
