@@ -199,39 +199,40 @@ Returns an alist with the following keys:
       (vars-export . ,vars-export)
       (scripts . ,scripts))))
 
-(defun micromamba--env-dir-is-valid (candidate)
-  "Confirm that CANDIDATE is a valid conda environment."
-  (let ((dir (file-name-as-directory candidate)))
-    (and (not (s-blank? candidate))
-         (f-directory? dir)
-         (or (f-directory? (concat dir micromamba-env-executables-dir))
-             (f-directory? (concat dir micromamba-env-meta-dir))))))
-
-(defun micromamba--contains-env-yml? (candidate) ;; adapted from conda.el
-  "Does CANDIDATE contain an environment.yml?"
-  (f-exists? (f-expand "environment.yml" candidate)))
-
 (defun micromamba--find-env-yml (dir) ;; adapted from conda.el
-  "Find an environment.yml in DIR or its parent directories."
-  ;; TODO: implement an optimized finder with e.g. projectile? Or a series of
-  ;; finder functions, that stop at the project root when traversing
-  (let ((containing-path (f-traverse-upwards 'micromamba--contains-env-yml? dir)))
+  "Find an environment.yml or .yaml in DIR or its parent directories."
+  (let ((containing-path (locate-dominating-file dir
+                          (lambda (parent)
+                            (directory-files parent nil "environment.[yml|yaml]")))))
     (when containing-path
-        (f-expand "environment.yml" containing-path))))
+      (let ((yml-candidate
+             (concat (file-name-as-directory containing-path) "environment.yml"))
+            (yaml-candidate
+             (concat (file-name-as-directory containing-path) "environment.yaml")))
+        (or (when (file-readable-p yml-candidate) yml-candidate)
+            (when (file-readable-p yaml-candidate) yaml-candidate))))))
+
+(defun micromamba--read-file-into-string (filename)
+  "Read the contents of FILENAME into a string."
+  (with-temp-buffer
+    (let ((coding-system-for-read 'utf-8))
+      (insert-file-contents filename)
+      (buffer-string))))
 
 (defun micromamba--get-name-from-env-yml (filename) ;; adapted from conda.el
   "Pull the `name` property out of the YAML file at FILENAME."
-  ;; TODO: find a better way than slurping it in and using a regex...
   (when filename
-    (let ((env-yml-contents (f-read-text filename)))
+    (let ((env-yml-contents (micromamba--read-file-into-string filename)))
       (when (string-match "name:[ ]*\\([A-z0-9-_.]+\\)[ ]*$" env-yml-contents)
           (match-string 1 env-yml-contents)))))
 
 (defun micromamba--infer-env-from-buffer () ;; adapted from conda.el
-  "Search up the project tree for an `environment.yml` defining a conda env."
+  "Search up the project tree for an `environment.yml` defining a conda env.
+
+Return `micromamba-fallback-environment' if not found."
   (let* ((filename (buffer-file-name))
          (working-dir (if filename
-                          (f-dirname filename)
+                          (file-name-directory filename)
                         default-directory)))
     (when working-dir
       (or
@@ -276,30 +277,6 @@ The parameters value is an alist as defined by
   (setq eshell-path-env (getenv "PATH")))
 
 ;; "public" functions
-
-(defun micromamba-env-default-location ()
-  "Default location of the conda environments -- under the Anaconda installation."
-  (let ((candidates (alist-get 'envs_dirs (micromamba--get-config))))
-    (f-full (aref candidates 0))))
-
-
-(defun micromamba-env-name-to-dir (name)
-  "Translate NAME to the directory where the environment is located."
-  (if (and (string= name "base")
-           (micromamba--env-dir-is-valid micromamba-home))
-      (file-name-as-directory (expand-file-name micromamba-home))
-    (let* ((default-location (file-name-as-directory (micromamba-env-default-location)))
-           (initial-possibilities (list name (concat default-location name)))
-           (possibilities (if (boundp 'venv-location)
-                              (if (stringp venv-location)
-                                  (cons venv-location initial-possibilities)
-                                (nconc venv-location initial-possibilities))
-                            initial-possibilities))
-           (matches (-filter 'micromamba--env-dir-is-valid possibilities)))
-      (if (> (length matches) 0)
-          (file-name-as-directory (expand-file-name (car matches)))
-        (error "No such conda environment: %s" name)))))
-
 ;;;###autoload
 (defun micromamba-activate (prefix)
   "Switch to environment with PREFIX (path).  Prompt if called interactively.
