@@ -82,6 +82,9 @@
 (defvar micromamba-env-current-prefix nil
   "Current activated micromamba environment.")
 
+(defvar micromamba--yml-cache nil
+  "Stores contents of yaml files.")
+
 (defvar eshell-path-env)
 
 (defun micromamba--call-json (&rest args)
@@ -186,7 +189,12 @@ Returns an alist with the following keys:
 (defun micromamba--get-name-from-env-yml (filename) ;; adapted from conda.el
   "Pull the `name` property out of the YAML file at FILENAME."
   (when filename
-    (let ((env-yml-contents (micromamba--read-file-into-string filename)))
+    (let ((env-yml-contents
+           (progn
+            (when (file-has-changed-p filename)
+                (add-to-list 'micromamba--yml-cache
+                             `(,filename . ,(micromamba--read-file-into-string filename))))
+            (cdr (assoc filename micromamba--yml-cache)))))
       (when (string-match "name:[ ]*\\([A-z0-9-_.]+\\)[ ]*$" env-yml-contents)
           (match-string 1 env-yml-contents)))))
 
