@@ -68,6 +68,9 @@
   "Whether to activate the base environment by default if no other is preferred.
 Default nil."
   :type 'boolean
+(defcustom micromamba-fallback-environment nil
+  "An environment that micromamba.el activates by default."
+  :type 'string
   :group 'micromamba)
 
 (defcustom micromamba-preactivate-hook nil
@@ -233,10 +236,7 @@ Returns an alist with the following keys:
     (when working-dir
       (or
        (micromamba--get-name-from-env-yml (micromamba--find-env-yml working-dir))
-       (when (or
-            micromamba-activate-base-by-default
-            (alist-get 'auto_activate_base (micromamba--get-config)))
-           "base")))))
+       micromamba-fallback-environment))))
 
 (defun micromamba--get-activation-parameters (prefix)
   "Get activation parameters for the environment PREFIX.
