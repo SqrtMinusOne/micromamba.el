@@ -186,17 +186,21 @@ Returns an alist with the following keys:
       (insert-file-contents filename)
       (buffer-string))))
 
+(defun micromamba--get-name-from-env-yml-contents (env-yml-contents)
+  "Pull the `name` property out of a stringified YAML file"
+  (save-match-data
+    (when (string-match "name:[ ]*\\([A-z0-9-_.]+\\)[ ]*$" env-yml-contents)
+      (match-string 1 env-yml-contents))))
+
 (defun micromamba--get-name-from-env-yml (filename) ;; adapted from conda.el
   "Pull the `name` property out of the YAML file at FILENAME."
   (when filename
-    (let ((env-yml-contents
-           (progn
-            (when (file-has-changed-p filename)
-                (add-to-list 'micromamba--yml-cache
-                             `(,filename . ,(micromamba--read-file-into-string filename))))
-            (cdr (assoc filename micromamba--yml-cache)))))
-      (when (string-match "name:[ ]*\\([A-z0-9-_.]+\\)[ ]*$" env-yml-contents)
-          (match-string 1 env-yml-contents)))))
+    (let ((filename (file-truename filename)))
+      (or (unless (file-has-changed-p filename))
+          (cdr (assoc filename micromamba--yml-cache))
+          (setf (alist-get filename micromamba--yml-cache)
+                (micromamba--get-name-from-env-yml-contents
+                 (micromamba--read-file-into-string filename)))))))
 
 (defun micromamba--infer-env-from-buffer () ;; adapted from conda.el
   "Search up the project tree for an `environment.yml` defining a conda env.
