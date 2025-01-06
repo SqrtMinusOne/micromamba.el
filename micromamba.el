@@ -202,18 +202,25 @@ Returns an alist with the following keys:
                 (micromamba--get-name-from-env-yml-contents
                  (micromamba--read-file-into-string filename)))))))
 
+(defvar-local micromamba--buffer-env nil
+  "The environment to autoactivate for the buffer.")
+
 (defun micromamba--infer-env-from-buffer () ;; adapted from conda.el
   "Search up the project tree for an `environment.yml` defining a conda env.
 
 Return `micromamba-fallback-environment' if not found."
-  (let* ((filename (buffer-file-name))
-         (working-dir (if filename
-                          (file-name-directory filename)
-                        default-directory)))
-    (when working-dir
-      (or
-       (micromamba--get-name-from-env-yml (micromamba--find-env-yml working-dir))
-       micromamba-fallback-environment))))
+  (if (file-remote-p buffer-file-name)
+      micromamba-fallback-environment
+    (or micromamba--buffer-env
+        (setq micromamba--buffer-env
+              (let* ((filename (buffer-file-name))
+                     (working-dir (if filename
+                                      (file-name-directory filename)
+                                    default-directory)))
+                (when working-dir
+                  (or
+                   (micromamba--get-name-from-env-yml (micromamba--find-env-yml working-dir))
+                   micromamba-fallback-environment)))))))
 
 (defun micromamba--get-activation-parameters (prefix)
   "Get activation parameters for the environment PREFIX.
