@@ -196,9 +196,9 @@ Returns an alist with the following keys:
   "Pull the `name` property out of the YAML file at FILENAME."
   (when filename
     (let ((filename (file-truename filename)))
-      (or (unless (file-has-changed-p filename))
-          (cdr (assoc filename micromamba--yml-cache))
-          (setf (alist-get filename micromamba--yml-cache)
+      (or (unless (file-has-changed-p filename)
+            (cdr (assoc filename micromamba--yml-cache)))
+          (setf (alist-get filename micromamba--yml-cache nil nil #'equal)
                 (micromamba--get-name-from-env-yml-contents
                  (micromamba--read-file-into-string filename)))))))
 
