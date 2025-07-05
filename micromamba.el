@@ -54,6 +54,11 @@
   :type 'string
   :group 'micromamba)
 
+(defcustom micromamba-fallback-environment nil
+  "An environment that micromamba.el activates by default."
+  :type 'string
+  :group 'micromamba)
+
 (defcustom micromamba-preactivate-hook nil
   "Hook run before a micromamba environment is activated."
   :type 'hook
@@ -76,6 +81,9 @@
 
 (defvar micromamba-env-current-prefix nil
   "Current activated micromamba environment.")
+
+(defvar micromamba--yml-cache nil
+  "Stores contents of yaml files.")
 
 (defvar eshell-path-env)
 
@@ -158,6 +166,62 @@ Returns an alist with the following keys:
       (vars-export . ,vars-export)
       (scripts . ,scripts))))
 
+(defun micromamba--find-env-yml (dir) ;; adapted from conda.el
+  "Find an environment.yml or .yaml in DIR or its parent directories."
+  (let ((containing-path (locate-dominating-file dir
+                          (lambda (parent)
+                            (directory-files parent nil "environment.[yml|yaml]")))))
+    (when containing-path
+      (let ((yml-candidate
+             (concat (file-name-as-directory containing-path) "environment.yml"))
+            (yaml-candidate
+             (concat (file-name-as-directory containing-path) "environment.yaml")))
+        (or (when (file-readable-p yml-candidate) yml-candidate)
+            (when (file-readable-p yaml-candidate) yaml-candidate))))))
+
+(defun micromamba--read-file-into-string (filename)
+  "Read the contents of FILENAME into a string."
+  (with-temp-buffer
+    (let ((coding-system-for-read 'utf-8))
+      (insert-file-contents filename)
+      (buffer-string))))
+
+(defun micromamba--get-name-from-env-yml-contents (env-yml-contents)
+  "Pull the `name` property out of a stringified YAML file"
+  (save-match-data
+    (when (string-match "name:[ ]*\\([A-z0-9-_.]+\\)[ ]*$" env-yml-contents)
+      (match-string 1 env-yml-contents))))
+
+(defun micromamba--get-name-from-env-yml (filename) ;; adapted from conda.el
+  "Pull the `name` property out of the YAML file at FILENAME."
+  (when filename
+    (let ((filename (file-truename filename)))
+      (or (unless (file-has-changed-p filename)
+            (cdr (assoc filename micromamba--yml-cache)))
+          (setf (alist-get filename micromamba--yml-cache nil nil #'equal)
+                (micromamba--get-name-from-env-yml-contents
+                 (micromamba--read-file-into-string filename)))))))
+
+(defvar-local micromamba--buffer-env nil
+  "The environment to autoactivate for the buffer.")
+
+(defun micromamba--infer-env-from-buffer () ;; adapted from conda.el
+  "Search up the project tree for an `environment.yml` defining a conda env.
+
+Return `micromamba-fallback-environment' if not found."
+  (if (file-remote-p buffer-file-name)
+      micromamba-fallback-environment
+    (or micromamba--buffer-env
+        (setq micromamba--buffer-env
+              (let* ((filename (buffer-file-name))
+                     (working-dir (if filename
+                                      (file-name-directory filename)
+                                    default-directory)))
+                (when working-dir
+                  (or
+                   (micromamba--get-name-from-env-yml (micromamba--find-env-yml working-dir))
+                   micromamba-fallback-environment)))))))
+
 (defun micromamba--get-activation-parameters (prefix)
   "Get activation parameters for the environment PREFIX.
 
@@ -195,6 +259,12 @@ The parameters value is an alist as defined by
     (setenv (car var) (cdr var)))
   (setq eshell-path-env (getenv "PATH")))
 
+(defun micromamba--env-name-to-prefix (name)
+  "Get the prefix of an environment with NAME."
+  (let ((envs (micromamba-envs)))
+    (alist-get name envs nil nil #'equal)))
+
+;; "public" functions
 ;;;###autoload
 (defun micromamba-activate (prefix)
   "Switch to environment with PREFIX (path).  Prompt if called interactively.
@@ -209,8 +279,7 @@ full paths."
             envs nil nil #'equal))))
   ;; To allow calling the function with env name as well
   (unless (string-match-p (rx bos "/") prefix)
-    (let ((envs (micromamba-envs)))
-      (setq prefix (alist-get prefix envs nil nil #'equal)))
+    (setq prefix (micromamba--env-name-to-prefix prefix))
     (unless prefix
       (user-error "Environment %s not found" prefix)))
   (micromamba-deactivate)
@@ -235,6 +304,48 @@ full paths."
      (micromamba--get-deactivation-parameters))
     (setq micromamba-env-current-prefix nil)
     (run-hooks 'micromamba-postdeactivate-hook)))
+
+;;;###autoload
+(defun micromamba-env-activate-for-buffer ()
+  "Activate the conda environment implied by the current buffer.
+
+This can be set by a buffer-local or project-local variable (e.g. a
+`.dir-locals.el` that defines `conda-project-env-path`), or inferred from an
+`environment.yml` or similar at the project level."
+  (interactive)
+  (let ((inferred-env (micromamba--infer-env-from-buffer)))
+    (when (and inferred-env
+               (not (string= micromamba-env-current-prefix
+                             (micromamba--env-name-to-prefix inferred-env))))
+      (micromamba-activate inferred-env))))
+
+(defun micromamba--switch-buffer-auto-activate (&rest args)
+  "Add Conda environment activation if a buffer has a file, handling ARGS."
+  (let ((filename (buffer-file-name)))
+    (when filename
+      (with-demoted-errors "Error: %S"
+        (micromamba-env-activate-for-buffer)))))
+
+;;;###autoload
+(define-minor-mode micromamba-env-autoactivate-mode
+  "Toggle conda-env-autoactivate mode.
+
+This mode automatically tries to activate a conda environment for the current
+buffer."
+  ;; The initial value.
+  :init-value nil
+  ;; The indicator for the mode line.
+  :lighter nil
+  ;; The minor mode bindings.
+  :keymap nil
+  ;; Kwargs
+  :group 'micromamba
+  :global t
+  ;; Forms
+  (if micromamba-env-autoactivate-mode ;; already on, now switching off
+    (add-hook 'window-selection-change-functions
+                 #'micromamba--switch-buffer-auto-activate)
+    (remove-hook 'window-selection-change-functions #'micromamba--switch-buffer-auto-activate)))
 
 (provide 'micromamba)
 ;;; micromamba.el ends here
