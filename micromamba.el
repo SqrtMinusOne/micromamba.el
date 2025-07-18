@@ -49,7 +49,7 @@
   "Micromamba (environment manager) integration for Emacs."
   :group 'python)
 
-(defcustom micromamba-executable (executable-find "micromamba")
+(defcustom micromamba-executable (executable-find "micromamba" 1)
   "Path to micromamba executable."
   :type 'string
   :group 'micromamba)
