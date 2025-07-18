@@ -87,6 +87,12 @@
 
 (defvar eshell-path-env)
 
+(defun safe-shell-command (args &optional output-buffer error-buffer)
+  (apply 'shell-command (mapconcat 'shell-quote-argument args " ")
+         output-buffer error-buffer nil))
+
+;; (safe-shell-command (#'micromamba-executable "env" "list" "--json"))
+
 (defun micromamba--call-json (&rest args)
   "Call micromamba and parse the return value as JSON.
 
@@ -94,7 +100,9 @@ Pass ARGS as arguments to the program."
   (unless micromamba-executable
     (user-error "Micromamba-executable is not set!"))
   (with-temp-buffer
-    (apply #'call-process micromamba-executable nil t nil args)
+    (if (file-remote-p default-directory)
+        (safe-shell-command (cons micromamba-executable args) (current-buffer))
+      (apply #'call-process micromamba-executable nil t nil args))
     (goto-char (point-min))
     (json-read)))
 
