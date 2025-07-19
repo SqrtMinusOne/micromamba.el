@@ -237,7 +237,7 @@ The parameters value is an alist as defined by
 `micromamba--parse-script-buffer'."
   (with-temp-buffer
     (if (file-remote-p default-directory)
-        (micromamba--safe-shell-command (list micromamba-executable "shell" "activate" prefix "-s" "bash") (current-buffer))
+        (micromamba--safe-shell-command (list micromamba-executable "shell" "activate" prefix "-s" "bash"))
       (call-process micromamba-executable nil t nil
                     "shell" "activate" prefix "-s" "bash"))
     (goto-char (point-min))
@@ -250,8 +250,7 @@ The parameters value is an alist as defined by
 `micromamba--parse-script-buffer'."
   (with-temp-buffer
     (if (file-remote-p default-directory)
-        (micromamba--safe-shell-command (list
-                                         micromamba-executable "run" "micromamba" "shell" "deactivate" "-s" "bash") (current-buffer))
+        (micromamba--safe-shell-command (list micromamba-executable "run" "micromamba" "shell" "deactivate" "-s" "bash"))
       (call-process micromamba-executable nil t nil
                     "shell" "deactivate" "-s" "bash"))
 
