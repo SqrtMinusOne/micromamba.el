@@ -87,12 +87,6 @@
 
 (defvar eshell-path-env)
 
-(defun micromamba--safe-shell-command (args &optional output-buffer error-buffer)
-  "Run a shell command with ARGS OUTPUT-BUFFER ERROR-BUFFER."
-  (apply 'shell-command (mapconcat 'shell-quote-argument args " ")
-         output-buffer error-buffer nil))
-
-
 (defun micromamba--call-json (&rest args)
   "Call micromamba and parse the return value as JSON.
 
@@ -101,7 +95,7 @@ Pass ARGS as arguments to the program."
     (user-error "Micromamba-executable is not set!"))
   (with-temp-buffer
     (if (file-remote-p default-directory)
-        (micromamba--safe-shell-command (cons micromamba-executable args) (current-buffer))
+        (shell-command (mapconcat 'identity (cons micromamba-executable args) " ") (current-buffer))
       (apply #'call-process micromamba-executable nil t nil args))
     (goto-char (point-min))
     (json-read)))
@@ -237,7 +231,11 @@ The parameters value is an alist as defined by
 `micromamba--parse-script-buffer'."
   (with-temp-buffer
     (if (file-remote-p default-directory)
-        (micromamba--safe-shell-command (list micromamba-executable "shell" "activate" prefix "-s" "bash"))
+        (shell-command
+         (mapconcat 'identity
+                    (list micromamba-executable "shell"
+                          "activate" prefix "-s" "bash") " ")
+         (current-buffer))
       (call-process micromamba-executable nil t nil
                     "shell" "activate" prefix "-s" "bash"))
     (goto-char (point-min))
@@ -250,7 +248,12 @@ The parameters value is an alist as defined by
 `micromamba--parse-script-buffer'."
   (with-temp-buffer
     (if (file-remote-p default-directory)
-        (micromamba--safe-shell-command (list micromamba-executable "run" "micromamba" "shell" "deactivate" "-s" "bash"))
+        (shell-command
+         (mapconcat 'identity
+                    (list micromamba-executable "run"
+                          "micromamba" "shell"
+                          "deactivate" "-s" "bash") " ")
+         (current-buffer))
       (call-process micromamba-executable nil t nil
                     "shell" "deactivate" "-s" "bash"))
 
